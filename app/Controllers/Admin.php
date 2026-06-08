@@ -294,6 +294,90 @@ class Admin extends BaseController
         }
     }
 
+    public function profile()
+    {
+            if (
+                session()->get('ses_id') == "" ||
+                session()->get('ses_user') == "" ||
+                session()->get('ses_level') == ""
+            ) {
+                session()->setFlashdata('error', 'Silakan login terlebih dahulu!');
+                ?>
+                <script>
+                    document.location = "<?= base_url('admin/login-admin'); ?>";
+                </script>
+                <?php
+                return;
+            }
+
+            $modelAdmin = new M_Admin();
+
+            $id = session()->get('ses_id');
+
+            $data['admin'] = $modelAdmin
+                ->getDataAdmin(['id_admin' => $id])
+                ->getRowArray();
+
+            return view('Backend/Template/header', $data)
+                . view('Backend/Template/sidebar', $data)
+                . view('Backend/profile', $data)
+                . view('Backend/Template/footer', $data);
+    }
+
+
+    public function settings()
+    {
+        if (
+            session()->get('ses_id') == "" ||
+            session()->get('ses_user') == "" ||
+            session()->get('ses_level') == ""
+        ) {
+            session()->setFlashdata('error', 'Silakan login terlebih dahulu!');
+            ?>
+            <script>
+                document.location = "<?= base_url('admin/login-admin'); ?>";
+            </script>
+            <?php
+            return;
+        }
+
+        $modelAdmin = new M_Admin();
+
+        $id = session()->get('ses_id');
+
+        $data['admin'] = $modelAdmin
+            ->getDataAdmin(['id_admin' => $id])
+            ->getRowArray();
+
+        return view('Backend/Template/header', $data)
+            . view('Backend/Template/sidebar', $data)
+            . view('Backend/setting', $data)
+            . view('Backend/Template/footer', $data);
+    }
+
+     public function update_password()
+    {
+        $modelAdmin = new M_Admin();
+
+        $id = session()->get('ses_id');
+        $password = $this->request->getPost('password');
+
+        if ($password == "") {
+            session()->setFlashdata('error', 'Password tidak boleh kosong!');
+            return redirect()->back();
+        }
+
+        $dataUpdate = [
+            'password_admin' => password_hash($password, PASSWORD_DEFAULT),
+            'updated_at' => date("Y-m-d H:i:s")
+        ];
+
+        $modelAdmin->updateDataAdmin($dataUpdate, ['id_admin' => $id]);
+
+        session()->setFlashdata('success', 'Password berhasil diupdate!');
+        return redirect()->to(base_url('admin/settings'));
+    }
+
     // ==================== ANGGOTA ====================
 
 public function master_data_anggota()
@@ -533,14 +617,52 @@ public function update_data_rak()
 
 public function hapus_data_rak()
 {
+    if(session()->get('ses_id') == "" or session()->get('ses_user') == "" or session()->get('ses_level') == "") {
+        session()->setFlashdata('error', 'Silakan login terlebih dahulu!');
+        ?><script>document.location = "<?= base_url('admin/login-admin');?>";</script><?php
+        exit;
+    }
+
     $modelRak = new M_Rak();
-    $uri     = service('uri');
-    $idHapus = $uri->getSegment(3);
-    $dataUpdate  = ['is_delete_rak' => '1', 'updated_at' => date('Y-m-d H:i:s')];
-    $whereUpdate = ['sha1(id_rak)' => $idHapus];
-    $modelRak->updateDataRak($dataUpdate, $whereUpdate);
+    $uri      = service('uri');
+    $idHapus  = $uri->getSegment(3);
+
+    $dataRak = $modelRak->getDataRak(['sha1(id_rak)' => $idHapus])->getRowArray();
+
+    if (!$dataRak) {
+        session()->setFlashdata('error', 'Data tidak ditemukan!');
+        echo '<script>document.location = "' . base_url('admin/master-data-rak') . '";</script>';
+        exit;
+    }
+
+    $id = $dataRak['id_rak'];
+
+    $db  = \Config\Database::connect();
+    $cek = $db->table('tbl_buku')
+        ->where('id_rak', $id)
+        ->where('is_delete_buku', '0')
+        ->countAllResults();
+
+    if ($cek > 0) {
+        session()->setFlashdata('error', 'Rak sedang digunakan oleh buku, tidak bisa dihapus!');
+        echo '<script>document.location = "' . base_url('admin/master-data-rak') . '";</script>';
+        exit;
+    }
+
+    $modelRak->where('id_rak', $id)->delete();
+
     session()->setFlashdata('success', 'Data Rak Berhasil Dihapus!');
-    ?><script>document.location = "<?= base_url('admin/master-data-rak');?>";</script><?php
+    echo '<script>document.location = "' . base_url('admin/master-data-rak') . '";</script>';
+    exit;
+}
+
+    private function requireLogin()
+{
+    if(session()->get('ses_id') == "" or session()->get('ses_user') == "" or session()->get('ses_level') == "") {
+        session()->setFlashdata('error', 'Silakan login terlebih dahulu!');
+        echo '<script>document.location = "' . base_url('admin/login-admin') . '";</script>';
+        exit;
+    }
 }
 
 // ==================== KATEGORI ====================
